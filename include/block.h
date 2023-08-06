@@ -107,7 +107,7 @@ private:
 #if defined(_WIN32) || defined(_WIN64)
   HANDLE m_hPackFile;
   HANDLE m_hFileMapping;
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
   int m_fdPackFile;
 #endif
 

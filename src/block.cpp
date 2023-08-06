@@ -31,12 +31,15 @@
 
 #include "../include/mimir.h"
 
-#include <errno.h>
-#if defined(__APPLE__) || defined(ANDROID)
+#if defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
 #include <unistd.h>
 #include <sys/mman.h>
+#include <fcntl.h>
 #endif
+
+#include <errno.h>
 #include <cassert>
+#include <cstring>
 
 #define KRENGINE_MIN_MMAP 32768
 #define KRAKEN_MEM_ROUND_DOWN_PAGE(x) ((x) & ~(KRENGINE_SYS_ALLOCATION_GRANULARITY - 1))
@@ -60,7 +63,7 @@ void init()
   KRENGINE_SYS_ALLOCATION_GRANULARITY = winSysInfo.dwAllocationGranularity;
   KRENGINE_SYS_PAGE_SIZE = winSysInfo.dwPageSize;
 
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif defined(__APPLE__) || __linux__ || defined(ANDROID)
 
   KRENGINE_SYS_PAGE_SIZE = getpagesize();
   KRENGINE_SYS_ALLOCATION_GRANULARITY = KRENGINE_SYS_PAGE_SIZE;
@@ -78,7 +81,7 @@ Block::Block()
 #if defined(_WIN32) || defined(_WIN64)
   m_hPackFile = INVALID_HANDLE_VALUE;
   m_hFileMapping = NULL;
-#elif defined(__APPLE__)
+#elif __linux__ || defined(__APPLE__)
   m_fdPackFile = 0;
 #endif
   m_fileName = "";
@@ -212,7 +215,7 @@ Block* Block::getSubBlock(int start, int length)
 #if defined(_WIN32) || defined(_WIN64)
   if (m_hPackFile != INVALID_HANDLE_VALUE) {
     new_block->m_hPackFile = m_hPackFile;
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif __linux__ || defined(__APPLE__) || defined(ANDROID)
   if (m_fdPackFile) {
     new_block->m_fdPackFile = m_fdPackFile;
 #else
@@ -253,7 +256,7 @@ void Block::expand(size_t size)
 {
 #if defined(_WIN32) || defined(_WIN64)
   if (m_data == NULL && m_hPackFile == INVALID_HANDLE_VALUE) {
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif __linux__ || defined(__APPLE__) || defined(ANDROID)
   if (m_data == NULL && m_fdPackFile == 0) {
 #else
 #error Unsupported
@@ -328,7 +331,7 @@ void Block::copy(void* dest, int start, int count)
       bytes_remaining -= bytes_read;
     }
     assert(bytes_remaining == 0);
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif __linux__ || defined(__APPLE__) || defined(ANDROID)
   if (m_lockCount == 0 && m_fdPackFile != 0) {
     // Optimization: If we haven't mmap'ed or malloced the data already, pread() it directly from the file into the buffer
     ssize_t r = pread(m_fdPackFile, dest, count, start + m_data_offset);
@@ -418,7 +421,7 @@ bool Block::save(const std::string & path)
 
   return success;
 
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif __linux__ || defined(__APPLE__) || defined(ANDROID)
   int fdNewFile = open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
   if (fdNewFile == -1) {
     return false;
@@ -501,7 +504,7 @@ void Block::lock()
     // Memory mapped file; ensure data is mapped to ram
 #if defined(_WIN32) || defined(_WIN64)
     if (m_hPackFile != INVALID_HANDLE_VALUE) {
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif __linux__ || defined(__APPLE__) || defined(ANDROID)
     if (m_fdPackFile) {
 #else
 #error Unsupported
@@ -525,7 +528,7 @@ void Block::lock()
         ReportWindowsLastError("MapViewOfFileFromApp");
       }
       assert(m_mmapData != NULL);
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif __linux__ || defined(__APPLE__) || defined(ANDROID)
       //fprintf(stderr, "Block::lock - \"%s\" (%i)\n", m_fileOwnerDataBlock->m_fileName.c_str(), m_lockCount);
       // Round m_data_offset down to the next memory page, as required by mmap
 
@@ -585,7 +588,7 @@ void Block::unlock()
     // Memory mapped file; ensure data is unmapped from ram
 #if defined(_WIN32) || defined(_WIN64)
     if (m_hPackFile != INVALID_HANDLE_VALUE) {
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif __linux__ || defined(__APPLE__) || defined(ANDROID)
     if (m_fdPackFile) {
 #else
 #error Undefined
@@ -603,7 +606,7 @@ void Block::unlock()
         CloseHandle(m_hFileMapping);
         m_hFileMapping = NULL;
       }
-#elif defined(__APPLE__) || defined(ANDROID)
+#elif __linux__ || defined(__APPLE__) || defined(ANDROID)
       munmap(m_mmapData, m_data_size);
 #else
 #error Undefined
