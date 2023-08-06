@@ -1,0 +1,36 @@
+language: cpp
+compiler: clang
+
+branches:
+  only:
+    - master 
+
+os:
+  - linux
+  - osx
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - libc++-dev
+      - ninja-build
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update       ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ninja; fi
+
+env:
+  - CMAKE_BUILD_TYPE=DEBUG
+  - CMAKE_BUILD_TYPE=RELEASE
+
+# Build steps
+script:
+  - export SRC_DIR="`pwd`"
+  - $CXX --version
+  - cmake --version
+  - mkdir "$TRAVIS_BUILD_DIR/build"
+  - cd "$TRAVIS_BUILD_DIR/build"
+  - cmake -GNinja "$SRC_DIR"
+  - ninja -v
