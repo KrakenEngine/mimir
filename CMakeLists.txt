@@ -18,7 +18,7 @@ set(SRCS
 
 add_library(mimir ${SRCS} ${PUBLIC_HEADERS})
 SET_TARGET_PROPERTIES(
-  hydra
+  mimir
 PROPERTIES
   VERSION 0.1.0
   SOVERSION 0.1
