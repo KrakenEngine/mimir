@@ -34,6 +34,7 @@
 #if defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #endif
 
@@ -190,7 +191,7 @@ bool Block::load(const std::string& path)
   m_fdPackFile = open(path.c_str(), O_RDONLY);
   if (m_fdPackFile >= 0) {
     m_fileOwnerDataBlock = this;
-    m_fileName = KRResource::GetFileBase(path);
+    m_fileName = util::GetFileBase(path);
     struct stat statbuf;
     if (fstat(m_fdPackFile, &statbuf) >= 0) {
       m_data_size = statbuf.st_size;
@@ -433,7 +434,7 @@ bool Block::save(const std::string & path)
 
   // Now map it...
   void* pNewData = mmap(0, m_data_size, PROT_READ | PROT_WRITE, MAP_SHARED, fdNewFile, 0);
-  if (pNewData == (caddr_t)-1) {
+  if (pNewData == (void*)-1) {
     close(fdNewFile);
     return false;
   }
@@ -532,7 +533,9 @@ void Block::lock()
       //fprintf(stderr, "Block::lock - \"%s\" (%i)\n", m_fileOwnerDataBlock->m_fileName.c_str(), m_lockCount);
       // Round m_data_offset down to the next memory page, as required by mmap
 
-      if ((m_mmapData = mmap(0, m_data_size + alignment_offset, m_bReadOnly ? PROT_READ : PROT_WRITE, MAP_SHARED, m_fdPackFile, m_data_offset - alignment_offset)) == (caddr_t)-1) {
+      if ((m_mmapData = mmap(0, m_data_size + alignment_offset, m_bReadOnly ? PROT_READ : PROT_WRITE, MAP_SHARED, m_fdPackFile, m_data_offset - alignment_offset)) == (void*)-1) {
+        /*
+        // Disabled until logging utility can be implemented
         int iError = errno;
         switch (iError) {
         case EACCES:
@@ -560,6 +563,7 @@ void Block::lock()
           KRContext::Log(KRContext::LOG_LEVEL_ERROR, "mmap failed with errno: %i", iError);
           break;
         }
+        */
         assert(false); // mmap() failed.
       }
 #else
