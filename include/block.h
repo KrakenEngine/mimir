@@ -39,7 +39,6 @@
 #endif
 
 namespace mimir {
-void init();
 class Block
 {
 public:
@@ -127,6 +126,7 @@ private:
   // Assert if not locked
   void assertLocked();
 
-};
+}; // class Block
+
 } // namespace mimir
 

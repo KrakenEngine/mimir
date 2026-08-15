@@ -40,5 +40,5 @@ std::string GetFileExtension(const std::string& name);
 std::string GetFileBase(const std::string& name);
 std::string GetFilePath(const std::string& name);
 
-} // namespace mimir
 } // namespace util
+} // namespace mimir

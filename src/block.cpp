@@ -30,6 +30,7 @@
 //
 
 #include "../include/mimir.h"
+#include "mimir_impl.h"
 
 #if defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
 #include <unistd.h>
@@ -43,36 +44,12 @@
 #include <cstring>
 
 #define KRENGINE_MIN_MMAP 32768
-#define KRAKEN_MEM_ROUND_DOWN_PAGE(x) ((x) & ~(KRENGINE_SYS_ALLOCATION_GRANULARITY - 1))
-#define KRAKEN_MEM_ROUND_UP_PAGE(x) ((((x) - 1) & ~(KRENGINE_SYS_ALLOCATION_GRANULARITY - 1)) + KRENGINE_SYS_ALLOCATION_GRANULARITY)
 
 namespace mimir {
 
 int m_mapCount = 0;
 size_t m_mapSize = 0;
 size_t m_mapOverhead = 0;
-
-int KRENGINE_SYS_ALLOCATION_GRANULARITY;
-int KRENGINE_SYS_PAGE_SIZE;
-
-void init()
-{
-#if defined(_WIN32) || defined(_WIN64)
-
-  SYSTEM_INFO winSysInfo;
-  GetSystemInfo(&winSysInfo);
-  KRENGINE_SYS_ALLOCATION_GRANULARITY = winSysInfo.dwAllocationGranularity;
-  KRENGINE_SYS_PAGE_SIZE = winSysInfo.dwPageSize;
-
-#elif defined(__APPLE__) || __linux__ || defined(ANDROID)
-
-  KRENGINE_SYS_PAGE_SIZE = getpagesize();
-  KRENGINE_SYS_ALLOCATION_GRANULARITY = KRENGINE_SYS_PAGE_SIZE;
-
-#else
-#error Unsupported
-#endif
-}
 
 Block::Block()
 {
@@ -466,36 +443,6 @@ std::string Block::getString()
   b.unlock();
   return ret;
 }
-
-#if defined(_WIN32) || defined(_WIN64)
-void ReportWindowsLastError(LPCTSTR lpszFunction)
-{
-  LPVOID lpMsgBuf;
-  LPVOID lpDisplayBuf;
-  DWORD dw = GetLastError();
-
-  FormatMessage(
-    FORMAT_MESSAGE_ALLOCATE_BUFFER |
-    FORMAT_MESSAGE_FROM_SYSTEM |
-    FORMAT_MESSAGE_IGNORE_INSERTS,
-    NULL,
-    dw,
-    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-    (LPTSTR)&lpMsgBuf,
-    0, NULL);
-
-  // Display the error message and exit the process
-
-  lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT,
-  (lstrlen((LPCTSTR)lpMsgBuf) + lstrlen((LPCTSTR)lpszFunction) + 40) * sizeof(TCHAR));
-  fprintf(stderr,
-    TEXT("%s failed with error %d: %s\n"),
-    lpszFunction, dw, (LPCTSTR)lpMsgBuf);
-
-  LocalFree(lpMsgBuf);
-  LocalFree(lpDisplayBuf);
-}
-#endif
 
 // Lock the memory, forcing it to be loaded into a contiguous block of address space
 void Block::lock()

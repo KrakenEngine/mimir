@@ -7,12 +7,15 @@ project(mimir)
 
 set(PUBLIC_HEADERS
   include/mimir.h
+  include/arena.h
   include/block.h
   include/util.h
 )
 
 set(SRCS
+  src/arena.cpp
   src/block.cpp
+  src/mimir.cpp
   src/util.cpp
 )
 

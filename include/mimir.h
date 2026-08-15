@@ -32,4 +32,9 @@
 #pragma once
 
 #include "block.h"
+#include "arena.h"
 #include "util.h"
+
+namespace mimir {
+void init();
+}
