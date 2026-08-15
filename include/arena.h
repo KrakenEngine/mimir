@@ -31,19 +31,26 @@
 
 #pragma once
 
-#include <string>
 #include <cstddef>
 
 namespace mimir {
 class Arena
 {
 public:
-  Arena(size_t minSize = 1ULL << 24, size_t maxSize = 1ULL << 32);
+  Arena();
   ~Arena();
+  bool init(size_t minSize = 1ULL << 24, size_t maxSize = 1ULL << 32);
 
+  // Allocate `size` bytes
   std::byte* alloc(size_t size);
+
+  // Allocate `size` bytes, aligned to 16 bytes and padded to next 16-byte offset.
   std::byte* allocA16(size_t size);
+
+  // Allocate `size` bytes, aligned to 64 bytes and padded to next 64-byte offset.
   std::byte* allocA64(size_t size);
+
+  // Reset the arena, potentially also releasing committed pages
   void reset();
 private:
   std::byte* m_data;

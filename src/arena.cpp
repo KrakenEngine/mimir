@@ -51,24 +51,13 @@
 
 namespace mimir {
 
-struct ArenaControlBlock
-{
-  size_t allocated;
-  size_t comitted;
-  size_t next;
-};
-
-static_assert(sizeof(ArenaControlBlock) < 4096);
-
-Arena::Arena(size_t minSize, size_t maxSize)
-  : m_minSize(minSize)
-  , m_maxSize(maxSize)
+Arena::Arena()
+  : m_minSize(0)
+  , m_maxSize(0)
   , m_data(nullptr)
   , m_usedSize(0)
   , m_committedSize(0)
 {
-  assert(maxSize >= minSize);
-
   for (size_t i = 0; i < kWatermarkLen; i++) {
     m_watermark[i] = 0;
   }
@@ -89,27 +78,36 @@ Arena::~Arena()
   }
 }
 
+bool Arena::init(size_t minSize, size_t maxSize)
+{
+  assert(maxSize >= minSize);
+  assert(m_data == nullptr);
+  assert(m_usedSize == 0);
+  assert(m_committedSize == 0);
+
+  m_minSize = KRAKEN_MEM_ROUND_UP_PAGE(minSize);
+  m_maxSize = KRAKEN_MEM_ROUND_UP_PAGE(maxSize);
+
+#if defined(_WIN32) || defined(_WIN64)
+  m_data = (std::byte*)VirtualAlloc(NULL, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize), MEM_RESERVE, PAGE_NOACCESS);
+  if (m_data == nullptr) {
+    ReportWindowsLastError("VirtualAlloc");
+    return false;
+  }
+#elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
+  m_data = (std::byte*)mmap(NULL, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (m_data == MAP_FAILED) {
+    return false;
+  }
+#else
+  static_assert(false, "Not Implemented");
+#endif
+  return true;
+}
+
 std::byte* Arena::alloc(size_t size)
 {
   size_t neededSize = m_usedSize + size;
-
-  if (m_data == nullptr) {
-#if defined(_WIN32) || defined(_WIN64)
-    m_data = (std::byte*)VirtualAlloc(NULL, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize), MEM_RESERVE, PAGE_NOACCESS);
-    if (m_data == nullptr) {
-      ReportWindowsLastError("VirtualAlloc");
-      return nullptr;
-    }
-#elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
-    m_data = (std::byte*)mmap(NULL, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (m_data == MAP_FAILED) {
-      return nullptr;
-    }
-#else
-    static_assert(false, "Not Implemented");
-#endif
-  }
-
   if (neededSize > m_committedSize)
   {
     size_t newSize = std::bit_ceil(neededSize) << 1;
@@ -142,7 +140,7 @@ std::byte* Arena::allocA16(size_t size)
 {
   uint32_t nextByte = (m_usedSize + 15) & ~15;
   uint32_t roundedSize = (size + 15) & ~15;
-  if (alloc(size) == nullptr)     {
+  if (alloc(roundedSize + nextByte - m_usedSize) == nullptr)     {
     return nullptr;
   }
 
@@ -153,7 +151,7 @@ std::byte* Arena::allocA64(size_t size)
 {
   uint32_t nextByte = (m_usedSize + 63) & ~63;
   uint32_t roundedSize = (size + 63) & ~63;
-  if (alloc(size) == nullptr) {
+  if (alloc(roundedSize + nextByte - m_usedSize) == nullptr) {
     return nullptr;
   }
 
