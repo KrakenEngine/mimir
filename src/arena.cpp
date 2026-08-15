@@ -61,8 +61,8 @@ struct ArenaControlBlock
 static_assert(sizeof(ArenaControlBlock) < 4096);
 
 Arena::Arena(size_t minSize, size_t maxSize)
-  : m_minSize(KRAKEN_MEM_ROUND_UP_PAGE(minSize))
-  , m_maxSize(KRAKEN_MEM_ROUND_UP_PAGE(maxSize))
+  : m_minSize(minSize)
+  , m_maxSize(maxSize)
   , m_data(nullptr)
   , m_usedSize(0)
   , m_committedSize(0)
@@ -82,7 +82,7 @@ Arena::~Arena()
       ReportWindowsLastError("VirtualAlloc");
     }
 #elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
-    munmap(m_data, m_maxSize);
+    munmap(m_data, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize));
 #else
     static_assert(false, "Not Implemented");
 #endif
@@ -95,13 +95,13 @@ std::byte* Arena::alloc(size_t size)
 
   if (m_data == nullptr) {
 #if defined(_WIN32) || defined(_WIN64)
-    m_data = (std::byte*)VirtualAlloc(NULL, m_maxSize, MEM_RESERVE, PAGE_NOACCESS);
+    m_data = (std::byte*)VirtualAlloc(NULL, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize), MEM_RESERVE, PAGE_NOACCESS);
     if (m_data == nullptr) {
       ReportWindowsLastError("VirtualAlloc");
       return nullptr;
     }
 #elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
-    m_data = (std::byte*)mmap(NULL, m_maxSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    m_data = (std::byte*)mmap(NULL, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (m_data == MAP_FAILED) {
       return nullptr;
     }
@@ -110,7 +110,7 @@ std::byte* Arena::alloc(size_t size)
 #endif
   }
 
-  if (neededSize < m_committedSize)
+  if (neededSize > m_committedSize)
   {
     size_t newSize = std::bit_ceil(neededSize) << 1;
     if (newSize < m_minSize) {
@@ -131,10 +131,10 @@ std::byte* Arena::alloc(size_t size)
     static_assert(false, "Not Implemented");
 #endif
     m_committedSize = newSize;
-  } // if (neededSize < m_committedSize)
+  } // if (neededSize > m_committedSize)
 
   std::byte* ret = m_data + m_usedSize;
-  m_usedSize += neededSize;
+  m_usedSize = neededSize;
   return ret;
 }
 
@@ -172,6 +172,9 @@ void Arena::reset()
   m_watermark[kWatermarkLen - 1] = m_usedSize;
 
   size_t targetSize = std::bit_ceil(highWatermark) << 1;
+  if (targetSize < m_minSize) {
+    targetSize = m_minSize;
+  }
   size_t thresholdSize = targetSize << 1; // The threshold for shrinking is greater than the target to implement hysteresis
   if (m_committedSize > thresholdSize) {
     size_t newSize = KRAKEN_MEM_ROUND_UP_PAGE(targetSize);
