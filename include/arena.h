@@ -36,6 +36,8 @@
 #include "region.h"
 
 namespace mimir {
+
+// Arena memory allocator, baed by a mimir::Region
 class Arena
 {
 public:

@@ -33,14 +33,18 @@
 
 #include <cstddef>
 
+#include "region.h"
+
 namespace mimir {
+
+// Heap implementation based on Two-Level Segregated Fit (TLSF) memory allocation
 class Heap
 {
 public:
   Heap();
   ~Heap();
 
-  bool init(size_t minSize = 1ULL << 24, size_t maxSize = 1ULL << 32);
+  bool init(size_t maxSize = 1ULL << 32);
 
   // Allocate `size` bytes
   std::byte* alloc(size_t size);
@@ -50,6 +54,9 @@ public:
 
   // Allocate `size` bytes, aligned to 64 bytes and padded to next 64-byte offset.
   std::byte* allocA64(size_t size);
+
+private:
+  Region m_region;
 };
 
 } // namespace mimir

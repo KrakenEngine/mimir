@@ -38,6 +38,8 @@
 
 namespace mimir {
 
+// Two-Level Segregated Fit (TLSF): http://www.gii.upv.es/tlsf/files/papers/ecrts04_tlsf.pdf
+
 Heap::Heap()
 {
 }
@@ -46,9 +48,12 @@ Heap::~Heap()
 {
 }
 
-bool Heap::init(size_t minSize, size_t maxSize)
+bool Heap::init(size_t maxSize)
 {
-  return false; // not implemented
+  if (!m_region.init(maxSize)) {
+    return false;
+  }
+  return true;
 }
 
 // Allocate `size` bytes

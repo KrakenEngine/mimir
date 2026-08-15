@@ -34,6 +34,9 @@
 #include <cstddef>
 
 namespace mimir {
+
+// Dynamically growable memory region with a contiguous address range.
+// Provides OS and hardware agnostic reservation and committing of memory pages.
 class Region
 {
 public:
