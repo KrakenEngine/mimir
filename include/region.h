@@ -1,5 +1,5 @@
 //
-//  mimir.h
+//  region.h
 //  Kraken Engine / Mimir
 //
 //  Copyright 2026 Kearwood Gilbert. All rights reserved.
@@ -31,12 +31,25 @@
 
 #pragma once
 
-#include "arena.h"
-#include "block.h"
-#include "heap.h"
-#include "region.h"
-#include "util.h"
+#include <cstddef>
 
 namespace mimir {
-void init();
-}
+class Region
+{
+public:
+  Region();
+  ~Region();
+
+  bool init(size_t maxSize = 1ULL << 32);
+  bool resize(size_t size);
+  size_t getSize() const;
+  size_t getMaxSize() const;
+  std::byte* getAddress() const;
+
+private:
+  std::byte* m_data;
+  size_t m_committedSize;
+  size_t m_maxSize;
+};
+
+} // namespace mimir

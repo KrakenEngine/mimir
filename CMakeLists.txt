@@ -10,6 +10,7 @@ set(PUBLIC_HEADERS
   include/arena.h
   include/block.h
   include/heap.h
+  include/region.h
   include/util.h
 )
 
@@ -18,6 +19,7 @@ set(SRCS
   src/block.cpp
   src/heap.cpp
   src/mimir.cpp
+  src/region.cpp
   src/util.cpp
 )
 

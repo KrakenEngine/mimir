@@ -33,6 +33,8 @@
 
 #include <cstddef>
 
+#include "region.h"
+
 namespace mimir {
 class Arena
 {
@@ -53,14 +55,13 @@ public:
   // Reset the arena, potentially also releasing committed pages
   void reset();
 private:
-  std::byte* m_data;
+  Region m_region;
   size_t m_minSize;
-  size_t m_maxSize;
-  size_t m_committedSize;
   size_t m_usedSize;
 
   static const size_t kWatermarkLen = 8;
   size_t m_watermark[kWatermarkLen];
+
 }; // class Arena
 
 } // namespace mimir

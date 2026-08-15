@@ -40,10 +40,7 @@ namespace mimir {
 
 Arena::Arena()
   : m_minSize(0)
-  , m_maxSize(0)
-  , m_data(nullptr)
   , m_usedSize(0)
-  , m_committedSize(0)
 {
   for (size_t i = 0; i < kWatermarkLen; i++) {
     m_watermark[i] = 0;
@@ -52,73 +49,31 @@ Arena::Arena()
 
 Arena::~Arena()
 {
-  if (m_data) {
-#if defined(_WIN32) || defined(_WIN64)
-    if (!VirtualFree((void*)m_data, 0, MEM_RELEASE)) {
-      ReportWindowsLastError("VirtualAlloc");
-    }
-#elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
-    munmap(m_data, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize));
-#else
-    static_assert(false, "Not Implemented");
-#endif
-  }
 }
 
 bool Arena::init(size_t minSize, size_t maxSize)
 {
   assert(maxSize >= minSize);
-  assert(m_data == nullptr);
   assert(m_usedSize == 0);
-  assert(m_committedSize == 0);
 
   m_minSize = KRAKEN_MEM_ROUND_UP_PAGE(minSize);
-  m_maxSize = KRAKEN_MEM_ROUND_UP_PAGE(maxSize);
-
-#if defined(_WIN32) || defined(_WIN64)
-  m_data = (std::byte*)VirtualAlloc(NULL, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize), MEM_RESERVE, PAGE_NOACCESS);
-  if (m_data == nullptr) {
-    ReportWindowsLastError("VirtualAlloc");
-    return false;
-  }
-#elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
-  m_data = (std::byte*)mmap(NULL, KRAKEN_MEM_ROUND_UP_PAGE(m_maxSize), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (m_data == MAP_FAILED) {
-    return false;
-  }
-#else
-  static_assert(false, "Not Implemented");
-#endif
-  return true;
+  return m_region.init(maxSize);
 }
 
 std::byte* Arena::alloc(size_t size)
 {
   size_t neededSize = m_usedSize + size;
-  if (neededSize > m_committedSize)
+  if (neededSize > m_region.getSize())
   {
+    // Increase the size exponentially when we run out
     size_t newSize = std::bit_ceil(neededSize) << 1;
     if (newSize < m_minSize) {
       newSize = m_minSize;
     }
-    newSize = KRAKEN_MEM_ROUND_UP_PAGE(newSize);
+    m_region.resize(newSize);
+  }
 
-#if defined(_WIN32) || defined(_WIN64)
-    if(VirtualAlloc(m_data + m_committedSize, newSize - m_committedSize, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
-      ReportWindowsLastError("VirtualAlloc");
-      return nullptr;
-    }
-#elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
-    if (mprotect(m_data + m_committedSize, newSize - m_committedSize, PROT_READ | PROT_WRITE) != 0) {
-      return nullptr;
-    }
-#else
-    static_assert(false, "Not Implemented");
-#endif
-    m_committedSize = newSize;
-  } // if (neededSize > m_committedSize)
-
-  std::byte* ret = m_data + m_usedSize;
+  std::byte* ret = m_region.getAddress() + m_usedSize;
   m_usedSize = neededSize;
   return ret;
 }
@@ -131,7 +86,7 @@ std::byte* Arena::allocA16(size_t size)
     return nullptr;
   }
 
-  return m_data + nextByte;
+  return m_region.getAddress() + nextByte;
 }
 
 std::byte* Arena::allocA64(size_t size)
@@ -142,7 +97,7 @@ std::byte* Arena::allocA64(size_t size)
     return nullptr;
   }
 
-  return m_data + nextByte;
+  return m_region.getAddress() + nextByte;
 }
 
 void Arena::reset()
@@ -161,28 +116,8 @@ void Arena::reset()
     targetSize = m_minSize;
   }
   size_t thresholdSize = targetSize << 1; // The threshold for shrinking is greater than the target to implement hysteresis
-  if (m_committedSize > thresholdSize) {
-    size_t newSize = KRAKEN_MEM_ROUND_UP_PAGE(targetSize);
-
-    std::byte* rangeStart = m_data + newSize;
-    size_t rangeLen = m_committedSize - newSize;
-#if defined(_WIN32) || defined(_WIN64)
-    if (!VirtualAlloc(rangeStart, rangeLen, MEM_RESET, PAGE_NOACCESS)) {
-      ReportWindowsLastError("VirtualAlloc");
-    } else {
-      m_committedSize = newSize;
-    }
-#elif defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
-    if (madvise(rangeStart, rangeLen, MADV_DONTNEED) != 0) {
-      // TODO - Log Error or debug build assert
-    }
-    if (mprotect(rangeStart, rangeLen, PROT_NONE) != 0) {
-      // TODO - Log Error or debug build assert
-    }
-#else
-    static_assert(false, "Not Implemented");
-#endif
-    m_committedSize = newSize;
+  if (m_region.getSize() > thresholdSize) {
+    m_region.resize(targetSize);
   }
 
   m_usedSize = 0;
