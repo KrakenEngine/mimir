@@ -1,5 +1,5 @@
 //
-//  mimir.h
+//  heap.h
 //  Kraken Engine / Mimir
 //
 //  Copyright 2026 Kearwood Gilbert. All rights reserved.
@@ -31,11 +31,14 @@
 
 #pragma once
 
-#include "arena.h"
-#include "block.h"
-#include "heap.h"
-#include "util.h"
+#include <cstddef>
 
 namespace mimir {
-void init();
-}
+class Heap
+{
+public:
+  Heap();
+  ~Heap();
+};
+
+} // namespace mimir

@@ -1,6 +1,6 @@
 //
-//  mimir.h
-//  Kraken Engine / Mimir
+//  heap.cpp
+//  Kraken Engine
 //
 //  Copyright 2026 Kearwood Gilbert. All rights reserved.
 //
@@ -29,13 +29,34 @@
 //  or implied, of Kearwood Gilbert.
 //
 
-#pragma once
+#include "../include/mimir.h"
+#include "mimir_impl.h"
 
-#include "arena.h"
-#include "block.h"
-#include "heap.h"
-#include "util.h"
+#if defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <Windows.h>
+#include <memoryapi.h>
+#endif
+
+#include <errno.h>
+#include <cassert>
+#include <cstring>
+#include <bit>
 
 namespace mimir {
-void init();
+
+Heap::Heap()
+{
 }
+
+Heap::~Heap()
+{
+}
+
+} // namespace mimir
