@@ -31,8 +31,16 @@
 
 #pragma once
 
+#if defined(__unix__) || defined(__APPLE__) || defined(ANDROID)
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <Windows.h>
+#include <memoryapi.h>
 #endif
 
 namespace mimir {

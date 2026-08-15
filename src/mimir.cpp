@@ -39,7 +39,6 @@
 #include <fcntl.h>
 #endif
 
-#include <errno.h>
 #include <cassert>
 #include <cstring>
 
