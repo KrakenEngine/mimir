@@ -40,6 +40,35 @@ namespace mimir {
 
 // Two-Level Segregated Fit (TLSF): http://www.gii.upv.es/tlsf/files/papers/ecrts04_tlsf.pdf
 
+const size_t kMinblockSize = 32;
+
+struct TLSFBlock
+{
+  size_t size; // LSB: T, F: T = Last physical block, F = Free block
+  TLSFBlock* prevPhys;
+  TLSFBlock* prevFree;
+  TLSFBlock* nextFree;
+};
+
+struct TLSFIndex
+{
+  uint64_t firstLevelFreeBitMap;
+  uint8_t secondLevelFreeBitMap[60];
+  TLSFBlock* secondLevelFreeBlocks[60 * 16];
+};
+
+uint64_t blockSizeToIndex(uint64_t size)
+{
+  // MSB 60 bits are the first level index
+  // LSB 4 bits is the second level index
+  size_t firstLevelIndex = std::bit_width(size) - 5;
+  size_t secondLevelIndex = (size >> firstLevelIndex) & 0b1111;
+  return (firstLevelIndex << 4) | secondLevelIndex;
+}
+
+
+static_assert(sizeof(TLSFBlock) == kMinblockSize);
+
 Heap::Heap()
 {
 }
@@ -53,12 +82,44 @@ bool Heap::init(size_t maxSize)
   if (!m_region.init(maxSize)) {
     return false;
   }
+  if (!m_region.resize(sizeof(TLSFIndex) + 16)) {
+    return false;
+  }
+  TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
+  memset(index, 0, sizeof(TLSFIndex));
+
+  // Start with one free block, filling the entire Region
+  TLSFBlock* block = (TLSFBlock*)(m_region.getAddress() + sizeof(TLSFIndex));
+  block->nextFree = nullptr;
+  block->prevFree = nullptr;
+  block->size = m_region.getMaxSize() - sizeof(TLSFIndex);
+  block->size |= 0b11; // T=1: Last Block, F=1: Free Block
+
+  // Add the block to the index
+  size_t usableSize = (block->size & ~0b11) - 16;
+  
+  size_t secondLevelIndex = blockSizeToIndex(usableSize);
+  index->firstLevelFreeBitMap |= std::bit_floor(usableSize);
+  index->secondLevelFreeBitMap[secondLevelIndex >> 4] |= secondLevelIndex & 0b1111;
+  index->secondLevelFreeBlocks[secondLevelIndex] = block;
+
   return true;
 }
 
 // Allocate `size` bytes
 std::byte* Heap::alloc(size_t size)
 {
+  /*
+  
+  HeapEmptyBlock* block = (HeapEmptyBlock*)address;
+  if (block->prevBlock) {
+    block->prevBlock->nextBlock = block->nextBlock;
+  }
+  if (block->nextBlock) {
+    block->nextBlock->prevBlock = block->prevBlock;
+  }
+
+  */
   return nullptr; // not implemented
 }
 
@@ -72,6 +133,11 @@ std::byte* Heap::allocA16(size_t size)
 std::byte* Heap::allocA64(size_t size)
 {
   return nullptr; // not implemented
+}
+
+// Free the allocation at `address`
+void Heap::free(std::byte* address)
+{
 }
 
 } // namespace mimir

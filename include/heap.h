@@ -55,6 +55,9 @@ public:
   // Allocate `size` bytes, aligned to 64 bytes and padded to next 64-byte offset.
   std::byte* allocA64(size_t size);
 
+  // Free the allocation at `address`
+  void free(std::byte* address);
+
 private:
   Region m_region;
 };

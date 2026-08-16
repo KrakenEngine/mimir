@@ -34,6 +34,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <bit>
 
 #define KRENGINE_MIN_MMAP 32768
 
