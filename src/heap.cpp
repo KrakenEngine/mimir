@@ -150,24 +150,51 @@ void Heap::removeFreeBlock(TLSFBlock* block)
 // Allocate `size` bytes
 std::byte* Heap::alloc(size_t size)
 {
+  if (size < 16) {
+    size = 16;
+  }
   TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
 
+  // size:           0b0000000000010000 (16)
+  // bit_ceil(size): 0b0000000000010000
+  // - 1 ...         0b0000000000001111
+  // ~ ...           0b1111111111110000
 
   // size:           0b0000001110011101 (925)
   // bit_ceil(size): 0b0000010000000000
   // - 1 ...         0b0000001111111111
   // ~ ...           0b1111110000000000
 
-  uint64_t possibleFirstLevels = ~(std::bit_ceil(size) - 1);
+  uint64_t possibleFirstLevels = ~(std::bit_floor(size) - 1);
   uint64_t freeFirstLevels = index->firstLevelFreeBitMap & possibleFirstLevels;
   uint64_t selectedFirstLevel = std::countr_zero(freeFirstLevels);
-  if (selectedFirstLevel < 5) {
-    selectedFirstLevel = 0;
-  } else {
-    selectedFirstLevel -= 5;
+  if (selectedFirstLevel == 64) {
+    // No first level with free blocks of sufficient size.
+    return nullptr;
   }
 
+  uint64_t firstLevelBufferMinSize = 1ULL << selectedFirstLevel;
+  uint64_t secondLevelMask = 0b1111ULL;
+  if (size > firstLevelBufferMinSize) {
+    uint64_t delta = size - firstLevelBufferMinSize;
+    secondLevelMask = (delta >> (selectedFirstLevel - 4)) & 0b1111ULL;
+  }
+  uint64_t possibleSecondLevels = secondLevelMask & index->secondLevelFreeBitMap[selectedFirstLevel - 4];
+  uint64_t selectedSecondLevel = std::countr_zero(possibleSecondLevels);
+  if (selectedSecondLevel == 64) {
+    // No free blocks available at this first level.
+  
+    // Select the next highest available first level.
+    selectedFirstLevel = std::countr_zero(freeFirstLevels & ~(1ULL << selectedFirstLevel));
+    if (selectedFirstLevel == 64) {
+      // No other first level with free blocks of sufficient size.
+      return nullptr;
+    }
 
+    // Any buffer at the second level will fit this allocation.
+    selectedSecondLevel = std::countr_zero(index->secondLevelFreeBitMap[selectedFirstLevel - 4]);
+  }
+  
 
   return nullptr; // not implemented
 }
