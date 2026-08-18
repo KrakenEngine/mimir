@@ -37,6 +37,8 @@
 
 namespace mimir {
 
+struct TLSFBlock;
+
 // Heap implementation based on Two-Level Segregated Fit (TLSF) memory allocation
 class Heap
 {
@@ -60,6 +62,12 @@ public:
 
 private:
   Region m_region;
+
+  // Add a free block to the index
+  void insertFreeBlock(TLSFBlock* block);
+
+  // Remove a free block from the index
+  void removeFreeBlock(TLSFBlock* block);
 };
 
 } // namespace mimir

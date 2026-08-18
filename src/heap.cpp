@@ -49,25 +49,49 @@ struct TLSFBlock
   TLSFBlock* prevFree;
   TLSFBlock* nextFree;
 };
+static_assert(sizeof(TLSFBlock) == kMinblockSize);
 
 struct TLSFIndex
 {
   uint64_t firstLevelFreeBitMap;
   uint8_t secondLevelFreeBitMap[60];
-  TLSFBlock* secondLevelFreeBlocks[60 * 16];
+  TLSFBlock* secondLevelFreeBlocks[60][16];
 };
 
+// First Level Ranges:
+// 0:  0b00000000010000  (    1 ~   16 )
+// 1:  0b00000000100000  (   17 ~   32 )
+// 2:  0b00000001000000  (   33 ~   64 )
+// 3:  0b00000010000000  (   65 ~  128 )
+// 4:  0b00000100000000  (  129 ~  256 )
+// 5:  0b00001000000000  (  257 ~  512 )
+// 6:  0b00010000000000  (  513 ~ 1024 )
+// 7:  0b00100000000000  ( 1025 ~ 2048 )
+//
+// bit_width(15): 4    bit_floor(15): 0b000001000
+// bit_width(16): 5    bit_floor(16): 0b000010000
+// bit_width(31): 5    bit_floor(31): 0b000010000
+// bit_width(32): 6    bit_floor(32): 0b000100000
+// bit_width(63): 6    bit_floor(63): 0b000100000
+// bit_width(64): 7    bit_floor(64): 0b001000000
+
+/*
 uint64_t blockSizeToIndex(uint64_t size)
 {
   // MSB 60 bits are the first level index
   // LSB 4 bits is the second level index
+
+  // size              0b0000001101011010000
+  // bit_width         13
+  // bit_width - 5     8
+  // size >> 8         0b0000000000000011010
+  //   & 0b1111        0b1010
+
   size_t firstLevelIndex = std::bit_width(size) - 5;
   size_t secondLevelIndex = (size >> firstLevelIndex) & 0b1111;
   return (firstLevelIndex << 4) | secondLevelIndex;
 }
-
-
-static_assert(sizeof(TLSFBlock) == kMinblockSize);
+*/
 
 Heap::Heap()
 {
@@ -95,31 +119,56 @@ bool Heap::init(size_t maxSize)
   block->size = m_region.getMaxSize() - sizeof(TLSFIndex);
   block->size |= 0b11; // T=1: Last Block, F=1: Free Block
 
-  // Add the block to the index
-  size_t usableSize = (block->size & ~0b11) - 16;
-  
-  size_t secondLevelIndex = blockSizeToIndex(usableSize);
-  index->firstLevelFreeBitMap |= std::bit_floor(usableSize);
-  index->secondLevelFreeBitMap[secondLevelIndex >> 4] |= secondLevelIndex & 0b1111;
-  index->secondLevelFreeBlocks[secondLevelIndex] = block;
+  insertFreeBlock(block);
 
   return true;
+}
+
+void Heap::insertFreeBlock(TLSFBlock* block)
+{
+  size_t usableSize = (block->size & ~0b11) - 16;
+
+  // Add the block to the index
+
+  TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
+
+  size_t firstLevelIndex = std::bit_width(usableSize) - 5;
+  size_t secondLevelIndex = (usableSize >> firstLevelIndex) & 0b1111;
+  index->firstLevelFreeBitMap |= std::bit_floor(usableSize);
+  index->secondLevelFreeBitMap[firstLevelIndex] |= secondLevelIndex & 0b1111;
+  index->secondLevelFreeBlocks[firstLevelIndex][secondLevelIndex] = block;
+}
+
+void Heap::removeFreeBlock(TLSFBlock* block)
+{
+  // Remove the block from the index
+  TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
+
+  size_t usableSize = (block->size & ~0b11) - 16;
 }
 
 // Allocate `size` bytes
 std::byte* Heap::alloc(size_t size)
 {
-  /*
-  
-  HeapEmptyBlock* block = (HeapEmptyBlock*)address;
-  if (block->prevBlock) {
-    block->prevBlock->nextBlock = block->nextBlock;
-  }
-  if (block->nextBlock) {
-    block->nextBlock->prevBlock = block->prevBlock;
+  TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
+
+
+  // size:           0b0000001110011101 (925)
+  // bit_ceil(size): 0b0000010000000000
+  // - 1 ...         0b0000001111111111
+  // ~ ...           0b1111110000000000
+
+  uint64_t possibleFirstLevels = ~(std::bit_ceil(size) - 1);
+  uint64_t freeFirstLevels = index->firstLevelFreeBitMap & possibleFirstLevels;
+  uint64_t selectedFirstLevel = std::countr_zero(freeFirstLevels);
+  if (selectedFirstLevel < 5) {
+    selectedFirstLevel = 0;
+  } else {
+    selectedFirstLevel -= 5;
   }
 
-  */
+
+
   return nullptr; // not implemented
 }
 
