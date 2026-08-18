@@ -40,7 +40,7 @@ namespace mimir {
 
 // Two-Level Segregated Fit (TLSF): http://www.gii.upv.es/tlsf/files/papers/ecrts04_tlsf.pdf
 
-const size_t kMinblockSize = 32;
+const size_t kMinblockSize = 16;
 
 struct TLSFBlock
 {
@@ -49,7 +49,7 @@ struct TLSFBlock
   TLSFBlock* prevFree;
   TLSFBlock* nextFree;
 };
-static_assert(sizeof(TLSFBlock) == kMinblockSize);
+static_assert(sizeof(TLSFBlock) == 32);
 
 struct TLSFIndex
 {
@@ -126,17 +126,24 @@ bool Heap::init(size_t maxSize)
 
 void Heap::insertFreeBlock(TLSFBlock* block)
 {
-  size_t usableSize = (block->size & ~0b11) - 16;
-
   // Add the block to the index
 
   TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
 
+  size_t usableSize = (block->size & ~0b11) - 16;
+
   size_t firstLevelIndex = std::bit_width(usableSize) - 5;
-  size_t secondLevelIndex = (usableSize >> firstLevelIndex) & 0b1111;
+  size_t secondLevelIndex = (usableSize >> firstLevelIndex) & 0b1111ULL;
   index->firstLevelFreeBitMap |= std::bit_floor(usableSize);
-  index->secondLevelFreeBitMap[firstLevelIndex] |= secondLevelIndex & 0b1111;
+  index->secondLevelFreeBitMap[firstLevelIndex] |= secondLevelIndex & 0b1111ULL;
+  TLSFBlock* prevFirstFreeBlock = index->secondLevelFreeBlocks[firstLevelIndex][secondLevelIndex];
   index->secondLevelFreeBlocks[firstLevelIndex][secondLevelIndex] = block;
+
+  block->prevFree = nullptr;
+  if (prevFirstFreeBlock) {
+    block->nextFree = prevFirstFreeBlock;
+    prevFirstFreeBlock->prevFree = block;
+  }
 }
 
 void Heap::removeFreeBlock(TLSFBlock* block)
@@ -145,13 +152,50 @@ void Heap::removeFreeBlock(TLSFBlock* block)
   TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
 
   size_t usableSize = (block->size & ~0b11) - 16;
+
+  size_t firstLevel = std::bit_width(usableSize);
+  size_t firstLevelIndex = firstLevel - 5;
+  size_t secondLevelIndex = (usableSize >> (firstLevel - 5)) & 0b1111ULL;
+
+  if (block->prevFree != nullptr) {
+    // Link the neighboring free blocks together
+    block->prevFree = block->nextFree;
+    if (block->nextFree) {
+      block->nextFree = block->prevFree;
+    }
+  } else {
+    // This block was the first for this level
+    index->secondLevelFreeBlocks[firstLevelIndex][secondLevelIndex] = block->nextFree;
+
+    if (block->nextFree == nullptr) {
+      // We have removed all the blocks at this level.
+
+      // Update second level bitmask.
+      index->secondLevelFreeBitMap[firstLevelIndex] &= ~(1ULL << secondLevelIndex);
+
+      // Check if there are any remaining free blocks within the first level
+      if (index->secondLevelFreeBitMap[firstLevelIndex] == 0) {
+
+        // This was the last one.  Clear the first level bit as well.
+        index->firstLevelFreeBitMap &= ~(1ULL << firstLevel);
+      }
+    }
+  }
+
+  if (block->size & 0b10ULL) {
+    // This block was the last in physical order.
+    if (block->prevPhys) {
+      // Update the prior block in physical order to mark it as the last block.
+      block->prevPhys->size &= 0b10ULL;
+    }
+  }
 }
 
 // Allocate `size` bytes
 std::byte* Heap::alloc(size_t size)
 {
-  if (size < 16) {
-    size = 16;
+  if (size < kMinblockSize) {
+    size = kMinblockSize;
   }
   TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
 
@@ -194,9 +238,50 @@ std::byte* Heap::alloc(size_t size)
     // Any buffer at the second level will fit this allocation.
     selectedSecondLevel = std::countr_zero(index->secondLevelFreeBitMap[selectedFirstLevel - 4]);
   }
-  
 
-  return nullptr; // not implemented
+  // Take the first free block
+  TLSFBlock* block = index->secondLevelFreeBlocks[selectedFirstLevel - 4][selectedSecondLevel];
+
+  size_t oldBlockSize = block->size & ~0b11ULL;
+  bool oldBlockWasLastPhysBlock = (block->size & ~0b10ULL) != 0;
+
+  TLSFBlock* prevFreeBlock = block->prevFree;
+  TLSFBlock* nextFreeBlock = block->nextFree;
+  TLSFBlock* prevPhysBlock = block->prevPhys;
+  TLSFBlock* nextPhysBlock = nullptr;
+  if (!oldBlockWasLastPhysBlock) {
+    nextPhysBlock = (TLSFBlock*)(((std::byte*)block) + oldBlockSize + 16);
+  }
+
+  // The next free block at this level replaces this block in the index.
+  index->secondLevelFreeBlocks[selectedFirstLevel - 4][selectedSecondLevel] = nextFreeBlock;
+
+  if (nextFreeBlock == nullptr) {
+    // This was the last free block at this level.
+    // Update the bitmap for the second level...
+    index->secondLevelFreeBitMap[selectedFirstLevel - 4] &= ~(1ULL << selectedSecondLevel);
+
+    // Check if there are any remaining free blocks within the first level
+    if (index->secondLevelFreeBitMap[selectedFirstLevel - 4] == 0) {
+      
+      // This was the last one.  Clear the first level bit as well.
+      index->firstLevelFreeBitMap &= ~(1ULL << selectedFirstLevel);
+    }
+  } else {
+    // The next free block is now the first free block at this level.
+    nextFreeBlock->prevFree = nullptr;
+  }
+
+  if (nextPhysBlock) {
+    // Link the next physical block to this one.
+    nextPhysBlock->prevPhys = block;
+  } else {
+    // This is the last physical block, so set the last block bit.
+    block->size &= 0b10ULL;
+  }
+
+  block->size = size;
+  return (std::byte*)block + 16;
 }
 
 // Allocate `size` bytes, aligned to 16 bytes and padded to next 16-byte offset.
