@@ -41,3 +41,5 @@ install(
     PUBLIC_HEADER
       DESTINATION include/mimir
 )
+
+add_subdirectory(tests)
