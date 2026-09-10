@@ -8,9 +8,9 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# ----====---- End: GoogleTest ----====---
-
 enable_testing()
+
+# ----====---- End: GoogleTest ----====---
 
 add_executable(
   mimir_test
