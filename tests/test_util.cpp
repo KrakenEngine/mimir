@@ -1,6 +1,7 @@
 #include "test_util.h"
 
 #include <algorithm>
+#include <cstring>
 
 namespace mimir_tests {
 
