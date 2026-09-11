@@ -96,7 +96,7 @@ TEST(Arena, OverflowByAlignmentA64)
   EXPECT_TRUE(arena.allocA64(arena.getMaxSize() - arena.getUsed()) == nullptr);
 }
 
-TEST(Arena, ArenaFillAndReset)
+TEST(Arena, FillAndReset)
 {
   // We purposefully want to have the same random sequence each time
 
