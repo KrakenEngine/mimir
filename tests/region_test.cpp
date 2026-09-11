@@ -1,24 +1,9 @@
 #include <gtest/gtest.h>
 #include "mimir.h"
 
+#include "test_util.h"
+
 namespace mimir_tests {
-
-void writeData(std::byte* dest, size_t count, int seed)
-{
-  for (int i = 0; i < count; i++) {
-    dest[i] = std::byte((seed * 3162 + i * 63163) % 0xff);
-  }
-}
-
-bool checkData(std::byte* src, size_t count, int seed)
-{
-  for (int i = 0; i < count; i++) {
-    if (src[i] != std::byte((seed * 3162 + i * 63163) % 0xff)) {
-      return false;
-    }
-  }
-  return true;
-}
 
 TEST(Region, InitialState)
 {

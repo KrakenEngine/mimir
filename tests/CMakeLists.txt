@@ -15,7 +15,8 @@ enable_testing()
 add_executable(
   mimir_test
   "region_test.cpp"
-)
+  "arena_test.cpp"
+  "test_util.cpp")
 target_link_libraries(
   mimir_test
   GTest::gtest_main

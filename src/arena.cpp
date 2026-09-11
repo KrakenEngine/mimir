@@ -60,6 +60,20 @@ bool Arena::init(size_t minSize, size_t maxSize)
   return m_region.init(maxSize);
 }
 
+// Get the actual used size.
+// This may differ from the sum of allocations due to alignment requirements.
+size_t Arena::getUsed() const
+{
+  return m_usedSize;
+}
+
+// Get the actual maximum size.
+// This may be greater than the maxSize passed into init, due to page size alignment.
+size_t Arena::getMaxSize() const
+{
+  return m_region.getSize();
+}
+
 std::byte* Arena::alloc(size_t size)
 {
   size_t neededSize = m_usedSize + size;
@@ -70,7 +84,9 @@ std::byte* Arena::alloc(size_t size)
     if (newSize < m_minSize) {
       newSize = m_minSize;
     }
-    m_region.resize(newSize);
+    if (!m_region.resize(newSize)) {
+      return nullptr;
+    }
   }
 
   std::byte* ret = m_region.getAddress() + m_usedSize;

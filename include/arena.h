@@ -56,6 +56,14 @@ public:
 
   // Reset the arena, potentially also releasing committed pages
   void reset();
+
+  // Get the actual used size.
+  // This may differ from the sum of allocations due to alignment requirements.
+  size_t getUsed() const;
+
+  // Get the actual maximum size.
+  // This may be greater than the maxSize passed into init, due to page size alignment.
+  size_t getMaxSize() const;
 private:
   Region m_region;
   size_t m_minSize;

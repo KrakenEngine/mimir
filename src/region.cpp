@@ -93,6 +93,10 @@ bool Region::resize(size_t size)
     return true;
   }
 
+  if (newSize > m_maxSize) {
+    return false;
+  }
+
   if (newSize > m_committedSize) {
     // ---- Growing ----
 #if defined(_WIN32) || defined(_WIN64)
