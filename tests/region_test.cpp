@@ -41,7 +41,7 @@ TEST(Region, OutOfMemory)
   mimir::init();
   mimir::Region region;
   EXPECT_TRUE(region.init(1ULL << 46)); // Attempt to reserve 64TB of pages
-  EXPECT_FALSE(region.resize(1ULL << 45)); // Attempt to commit 32TB of pages (Assuming we don't have 32TB of ram!)
+  EXPECT_FALSE(region.resize(1ULL << 60)); // Attempt to commit an extremely large number of pages
 }
 
 TEST(Region, Min1GB)
