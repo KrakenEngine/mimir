@@ -70,12 +70,12 @@ TEST(Region, Resizing)
   EXPECT_TRUE(region.resize(1ULL << 9));
 }
 
-TEST(Region, OverSized)
+TEST(Region, Oversized)
 {
   mimir::init();
   mimir::Region region;
 
-  EXPECT_TRUE(region.resize(1ULL << 4));
+  EXPECT_TRUE(region.init(1ULL << 4));
   size_t prevSize = region.getSize();
 
   EXPECT_FALSE(region.resize(1ULL << 20));
