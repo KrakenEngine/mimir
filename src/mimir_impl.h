@@ -39,6 +39,7 @@
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
+#define NOMINMAX
 #include <Windows.h>
 #include <memoryapi.h>
 #endif

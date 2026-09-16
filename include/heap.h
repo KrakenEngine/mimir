@@ -46,7 +46,7 @@ public:
   Heap();
   ~Heap();
 
-  bool init(size_t maxSize = 1ULL << 32);
+  bool init(size_t minSize = 1ULL << 24, size_t maxSize = 1ULL << 32);
 
   // Allocate `size` bytes
   std::byte* alloc(size_t size);
@@ -60,8 +60,18 @@ public:
   // Free the allocation at `address`
   void free(std::byte* address);
 
+  // Get the actual used size.
+  // This may differ from the sum of allocations due to alignment requirements.
+  size_t getUsed() const;
+
+  // Get the actual maximum size.
+  // This may be greater than the maxSize passed into init, due to page size alignment.
+  size_t getMaxSize() const;
+
 private:
   Region m_region;
+  size_t m_minSize;
+  size_t m_usedSize;
 
   // Add a free block to the index
   void insertFreeBlock(TLSFBlock* block);

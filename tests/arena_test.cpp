@@ -6,6 +6,14 @@
 
 namespace mimir_tests {
 
+TEST(Arena, InitialState)
+{
+  mimir::init();
+  mimir::Arena arena;
+  EXPECT_TRUE(arena.init());
+  EXPECT_EQ(arena.getUsed(), 0);
+}
+
 TEST(Arena, OutOfMemory)
 {
   mimir::init();

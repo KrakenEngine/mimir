@@ -32,6 +32,7 @@
 #include "../include/mimir.h"
 #include "mimir_impl.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <bit>
@@ -94,6 +95,8 @@ uint64_t blockSizeToIndex(uint64_t size)
 */
 
 Heap::Heap()
+  : m_minSize(0)
+  , m_usedSize(0)
 {
 }
 
@@ -101,12 +104,18 @@ Heap::~Heap()
 {
 }
 
-bool Heap::init(size_t maxSize)
+bool Heap::init(size_t minSize, size_t maxSize)
 {
+  assert(maxSize >= minSize);
+  assert(m_usedSize == 0);
+
+  m_minSize = sizeof(TLSFIndex) + 16;
+  m_minSize = std::max(m_minSize, minSize);
+  m_minSize = KRAKEN_MEM_ROUND_UP_PAGE(m_minSize);
   if (!m_region.init(maxSize)) {
     return false;
   }
-  if (!m_region.resize(sizeof(TLSFIndex) + 16)) {
+  if (!m_region.resize(m_minSize)) {
     return false;
   }
   TLSFIndex* index = (TLSFIndex*)m_region.getAddress();
@@ -122,6 +131,20 @@ bool Heap::init(size_t maxSize)
   insertFreeBlock(block);
 
   return true;
+}
+
+// Get the actual maximum size.
+// This may be greater than the maxSize passed into init, due to page size alignment.
+size_t Heap::getMaxSize() const
+{
+  return m_region.getSize();
+}
+
+// Get the actual used size.
+// This may differ from the sum of allocations due to alignment requirements.
+size_t Heap::getUsed() const
+{
+  return m_usedSize;
 }
 
 void Heap::insertFreeBlock(TLSFBlock* block)
@@ -281,6 +304,7 @@ std::byte* Heap::alloc(size_t size)
   }
 
   block->size = size;
+  m_usedSize += size;
   return (std::byte*)block + 16;
 }
 
