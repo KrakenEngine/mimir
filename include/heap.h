@@ -78,6 +78,12 @@ private:
 
   // Remove a free block from the index
   void removeFreeBlock(TLSFBlock* block);
+
+  // Find a free block that can hold at least size bytes
+  TLSFBlock* findFreeBlock(size_t size) const;
+
+  // Get the usable size of a block
+  size_t getBlockUsableSize(const TLSFBlock* block) const;
 };
 
 } // namespace mimir
