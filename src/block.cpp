@@ -273,6 +273,18 @@ void Block::append(void* data, size_t size)
   unlock();
 }
 
+// Fill an entire block with a byte value
+void Block::fill(uint8_t v)
+{
+  if (getSize() == 0) {
+    return;
+  }
+
+  lock();
+  memset(getStart(), v, getSize());
+  unlock();
+}
+
 
 // Copy the entire data block to the destination pointer
 void Block::copy(void* dest)

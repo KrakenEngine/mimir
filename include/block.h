@@ -92,6 +92,9 @@ public:
   // Copy a range of data to the destination pointer
   void copy(void* dest, int start, int count);
 
+  // Fill an entire block with a byte value
+  void fill(uint8_t v);
+
   // Lock the memory, forcing it to be loaded into a contiguous block of address space
   void lock();
 
